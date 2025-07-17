@@ -72,6 +72,13 @@ import com.example.cahier.R
 import com.example.cahier.data.FocusedField
 import com.example.cahier.ui.viewmodels.CanvasScreenViewModel
 import kotlinx.coroutines.launch
+import androidx.compose.ui.draganddrop.dragAndDropTarget
+import android.content.ClipData
+import android.view.DragEvent
+import androidx.compose.ui.draganddrop.DragAndDropEvent
+import androidx.compose.ui.draganddrop.DragAndDropTarget
+import androidx.compose.ui.draganddrop.toAndroidDragEvent
+import androidx.compose.ui.platform.LocalView
 
 @Composable
 fun NoteCanvas(
@@ -80,6 +87,7 @@ fun NoteCanvas(
     modifier: Modifier = Modifier,
     canvasScreenViewModel: CanvasScreenViewModel = hiltViewModel()
 ) {
+    val view = LocalView.current
     val uiState by canvasScreenViewModel.uiState.collectAsState()
     val coroutineScope = rememberCoroutineScope()
     var optionsMenuExpanded by rememberSaveable { mutableStateOf(false) }
@@ -129,7 +137,29 @@ fun NoteCanvas(
     }
 
     Surface(
-        modifier = modifier.fillMaxSize(),
+        modifier = modifier
+            .fillMaxSize()
+            .dragAndDropTarget(
+                shouldStartDragAndDrop = { event ->
+                    event
+                        .toAndroidDragEvent()
+                        .clipDescription
+                        .hasMimeType("image/*")
+                },
+                target = object : DragAndDropTarget {
+                    override fun onDrop(event: DragAndDropEvent): Boolean {
+                        val dragEvent = event.toAndroidDragEvent()
+                        val clipData: ClipData = dragEvent.clipData
+                        val uri = clipData.getItemAt(0).uri
+                        if (uri != null) {
+                            coroutineScope.launch {
+                                canvasScreenViewModel.updateImageUri(uri.toString())
+                            }
+                        }
+                        return true
+                    }
+                }
+            ),
         color = MaterialTheme.colorScheme.background
     ) {
         Column(
@@ -232,66 +262,28 @@ fun NoteCanvas(
                 }
             }
 
-            if (uiState.note.imageUriList.isNullOrEmpty()) {
-                uiState.note.text?.let { text ->
-                    TextField(
-                        value = text,
-                        placeholder = { Text(stringResource(R.string.note)) },
-                        onValueChange = { canvasScreenViewModel.updateNoteText(it) },
-                        keyboardOptions = KeyboardOptions(
-                            autoCorrectEnabled = true,
-                            capitalization = KeyboardCapitalization.Sentences
-                        ),
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(horizontal = 16.dp, vertical = 8.dp)
-                            .focusRequester(bodyFocusRequester)
-                            .onFocusChanged { focusState ->
-                                if (focusState.isFocused) {
-                                    focusedField.value = FocusedField.BODY
-                                }
-                            },
-                        textStyle = MaterialTheme.typography.bodyLarge
-                    )
-                }
-            } else {
-                Row(
-                    modifier = Modifier.fillMaxSize()
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .weight(3f)
-                            .fillMaxSize()
-
-                    ) {
-                        uiState.note.text?.let { text ->
-                            TextField(
-                                value = text,
-                                placeholder = { Text(stringResource(R.string.note)) },
-                                onValueChange = { canvasScreenViewModel.updateNoteText(it) },
-                                keyboardOptions = KeyboardOptions(
-                                    autoCorrectEnabled = true,
-                                    capitalization = KeyboardCapitalization.Sentences
-                                ),
-                                modifier = Modifier.fillMaxSize(),
-                                textStyle = MaterialTheme.typography.bodyLarge
-                            )
-                        }
-                    }
-
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxSize()
-                    ) {
-                        if (uiState.note.imageUriList?.isNotEmpty() == true) {
-                            NoteImagesView(
-                                images = uiState.note.imageUriList!!,
-                                onClearImages = { /*TODO*/ },
-                            )
-                        }
-                    }
-                }
+            if (uiState.note.text != null) {
+                TextField(
+                    value = uiState.note.text!!,
+                    onValueChange = { canvasScreenViewModel.updateNoteText(it) },
+                    placeholder = { Text(stringResource(R.string.note)) },
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .focusRequester(bodyFocusRequester)
+                        .onFocusChanged { focusState ->
+                            if (focusState.isFocused) {
+                                focusedField.value = FocusedField.BODY
+                            }
+                        },
+                    textStyle = MaterialTheme.typography.bodyLarge
+                )
+            }
+            if (uiState.note.imageUriList?.isNotEmpty() == true) {
+                NoteImagesView(
+                    images = uiState.note.imageUriList!!,
+                    onClearImages = { /*TODO*/ },
+                )
             }
         }
     }

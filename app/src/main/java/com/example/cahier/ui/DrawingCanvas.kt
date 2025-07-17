@@ -64,13 +64,14 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -80,13 +81,22 @@ import androidx.compose.ui.window.PopupProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.ink.brush.BrushFamily
 import androidx.ink.brush.StockBrushes
-import androidx.ink.rendering.android.canvas.CanvasStrokeRenderer
 import androidx.ink.strokes.Stroke
 import androidx.navigation.NavBackStackEntry
 import com.example.cahier.R
+import com.example.cahier.data.CahierUiState
 import com.example.cahier.ui.viewmodels.DrawingCanvasViewModel
 import kotlinx.coroutines.launch
-
+import androidx.ink.authoring.rememberInkCanvas
+import androidx.ink.authoring.InkCanvas
+import androidx.ink.rendering.CanvasRenderer
+import androidx.compose.ui.draganddrop.dragAndDropTarget
+import android.content.ClipData
+import android.view.DragEvent
+import androidx.compose.ui.draganddrop.DragAndDropEvent
+import androidx.compose.ui.draganddrop.DragAndDropTarget
+import androidx.compose.ui.draganddrop.toAndroidDragEvent
+import androidx.compose.ui.platform.LocalView
 
 @Composable
 fun DrawingCanvas(
@@ -95,11 +105,10 @@ fun DrawingCanvas(
     modifier: Modifier = Modifier,
     drawingCanvasViewModel: DrawingCanvasViewModel = hiltViewModel()
 ) {
+    val view = LocalView.current
     val uiState by drawingCanvasViewModel.uiState.collectAsState()
     val context = LocalContext.current
-    val canvasStrokeRenderer = remember { CanvasStrokeRenderer.create() }
     val coroutineScope = rememberCoroutineScope()
-//    val selectedBrush by drawingCanvasViewModel.currentBrush.collectAsState()
     val strokes = remember { mutableStateListOf<Stroke>() }
 
     LaunchedEffect(uiState.strokes) {
@@ -130,6 +139,27 @@ fun DrawingCanvas(
             .statusBarsPadding()
             .navigationBarsPadding()
             .imePadding()
+            .dragAndDropTarget(
+                shouldStartDragAndDrop = { event ->
+                    event
+                        .toAndroidDragEvent()
+                        .clipDescription
+                        .hasMimeType("image/*")
+                },
+                target = object : DragAndDropTarget {
+                    override fun onDrop(event: DragAndDropEvent): Boolean {
+                        val dragEvent = event.toAndroidDragEvent()
+                        val clipData: ClipData = dragEvent.clipData
+                        val uri = clipData.getItemAt(0).uri
+                        if (uri != null) {
+                            coroutineScope.launch {
+                                drawingCanvasViewModel.updateImageUri(uri.toString())
+                            }
+                        }
+                        return true
+                    }
+                }
+            )
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             TextField(
@@ -152,24 +182,55 @@ fun DrawingCanvas(
                 .padding(8.dp),
             drawingCanvasViewModel = drawingCanvasViewModel,
             imagePickerLauncher = imagePickerLauncher,
-            canUndo = canUndo,
-            canRedo = canRedo,
-            onUndo = drawingCanvasViewModel::undo,
-            onRedo = drawingCanvasViewModel::redo,
-            onExit = navigateUp,
-        )
-        DrawingSurface(
-            strokes = strokes,
-            canvasStrokeRenderer = canvasStrokeRenderer,
-            uiState = uiState,
-//            selectedBrush = selectedBrush,
-            selectedBrush = uiState.brush,
-            onStrokesFinished = { newStrokes ->
-                strokes.addAll(newStrokes)
-                drawingCanvasViewModel.onStrokesFinished(newStrokes)
+            onUndo = {
+                coroutineScope.launch {
+                    drawingCanvasViewModel.undo()
+                }
             },
-            modifier = Modifier.weight(1f),
+            onRedo = {
+                coroutineScope.launch {
+                    drawingCanvasViewModel.redo()
+                }
+            },
+            onExit = navigateUp,
+            uiState = uiState,
         )
+
+        Column(
+            modifier = Modifier.fillMaxSize().weight(1f)
+        ) {
+            val inkCanvas = rememberInkCanvas(
+                brush = uiState.brush,
+                onFinishStroke = {
+                    drawingCanvasViewModel.onStrokesFinished(listOf(it))
+                }
+            )
+            InkCanvas(
+                canvas = inkCanvas,
+                modifier = Modifier.fillMaxSize().weight(1f)
+                    .clipToBounds()
+                    .background(MaterialTheme.colorScheme.background)
+                    .pointerInput(uiState.isEraserMode) {
+                        if (uiState.isEraserMode) {
+                            awaitPointerEventScope {
+                                while (true) {
+                                    val event = awaitPointerEvent()
+                                    drawingCanvasViewModel.erase(
+                                        event.changes[0].position.x,
+                                        event.changes[0].position.y
+                                    )
+                                }
+                            }
+                        }
+                    }
+            )
+            if (uiState.note.imageUriList?.isNotEmpty() == true) {
+                NoteImagesView(
+                    images = uiState.note.imageUriList!!,
+                    onClearImages = { /*TODO*/ },
+                )
+            }
+        }
     }
 }
 
@@ -178,18 +239,15 @@ fun DrawingCanvas(
 fun DrawingToolbox(
     drawingCanvasViewModel: DrawingCanvasViewModel,
     imagePickerLauncher: ActivityResultLauncher<PickVisualMediaRequest>,
-    canUndo: Boolean,
-    canRedo: Boolean,
     onUndo: () -> Unit,
     onRedo: () -> Unit,
     onExit: () -> Unit,
+    uiState: CahierUiState,
     modifier: Modifier = Modifier
 ) {
     val coroutineScope = rememberCoroutineScope()
     var brushMenuExpanded by rememberSaveable { mutableStateOf(false) }
     var showColorPicker by rememberSaveable { mutableStateOf(false) }
-    val isEraserMode by drawingCanvasViewModel.isEraserMode.collectAsState()
-    val uiState by drawingCanvasViewModel.uiState.collectAsState()
     var optionsMenuExpanded by rememberSaveable { mutableStateOf(false) }
 
     Surface(
@@ -214,7 +272,7 @@ fun DrawingToolbox(
                         painter = painterResource(R.drawable.brush_24px),
                         contentDescription = stringResource(R.string.brush),
                         modifier = Modifier.background(
-                            color = if (isEraserMode) Color.Transparent else
+                            color = if (uiState.isEraserMode) Color.Transparent else
                                 MaterialTheme.colorScheme.inversePrimary,
                             shape = CircleShape
                         )
@@ -253,7 +311,7 @@ fun DrawingToolbox(
             }
 
             item {
-                IconButton(onClick = onUndo, enabled = canUndo) {
+                IconButton(onClick = onUndo, enabled = uiState.strokes.isNotEmpty()) {
                     Icon(
                         painter = painterResource(R.drawable.undo_24px),
                         contentDescription = stringResource(R.string.undo)
@@ -262,7 +320,7 @@ fun DrawingToolbox(
             }
 
             item {
-                IconButton(onClick = onRedo, enabled = canRedo) {
+                IconButton(onClick = onRedo, enabled = uiState.strokes.isNotEmpty()) {
                     Icon(
                         painter = painterResource(R.drawable.redo_24px),
                         contentDescription = stringResource(R.string.redo)
@@ -276,7 +334,7 @@ fun DrawingToolbox(
                         painter = painterResource(R.drawable.ink_eraser_24px),
                         contentDescription = stringResource(R.string.eraser),
                         modifier = Modifier.background(
-                            color = if (isEraserMode)
+                            color = if (uiState.isEraserMode)
                                 MaterialTheme.colorScheme.inversePrimary else Color.Transparent,
                         )
                     )
@@ -416,20 +474,16 @@ fun BrushDropdownMenu(
         properties = PopupProperties(focusable = true)
     ) {
         DropdownMenuItem(
-            text = { Text(text = stringResource(R.string.pressure_pen)) },
-            onClick = { onBrushChange(StockBrushes.pressurePenLatest, pressurePenSize) }
+            text = { Text(text = stringResource(R.string.pen)) },
+            onClick = { onBrushChange(StockBrushes.Pen, pressurePenSize) }
         )
         DropdownMenuItem(
             text = { Text(text = stringResource(R.string.marker)) },
-            onClick = { onBrushChange(StockBrushes.markerLatest, markerSize) }
+            onClick = { onBrushChange(StockBrushes.Marker, markerSize) }
         )
         DropdownMenuItem(
             text = { Text(text = stringResource(R.string.highlighter)) },
-            onClick = { onBrushChange(StockBrushes.highlighterLatest, highlighterSize) }
-        )
-        DropdownMenuItem(
-            text = { Text(text = stringResource(R.string.dashed_line)) },
-            onClick = { onBrushChange(StockBrushes.dashedLineLatest, pressurePenSize) }
+            onClick = { onBrushChange(StockBrushes.Highlighter, highlighterSize) }
         )
     }
 }
