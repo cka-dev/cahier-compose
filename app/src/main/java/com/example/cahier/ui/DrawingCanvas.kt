@@ -196,39 +196,43 @@ fun DrawingCanvas(
             uiState = uiState,
         )
 
-        Column(
+        LazyColumn(
             modifier = Modifier.fillMaxSize().weight(1f)
         ) {
-            val inkCanvas = rememberInkCanvas(
-                brush = uiState.brush,
-                onFinishStroke = {
-                    drawingCanvasViewModel.onStrokesFinished(listOf(it))
-                }
-            )
-            InkCanvas(
-                canvas = inkCanvas,
-                modifier = Modifier.fillMaxSize().weight(1f)
-                    .clipToBounds()
-                    .background(MaterialTheme.colorScheme.background)
-                    .pointerInput(uiState.isEraserMode) {
-                        if (uiState.isEraserMode) {
-                            awaitPointerEventScope {
-                                while (true) {
-                                    val event = awaitPointerEvent()
-                                    drawingCanvasViewModel.erase(
-                                        event.changes[0].position.x,
-                                        event.changes[0].position.y
-                                    )
+            item {
+                val inkCanvas = rememberInkCanvas(
+                    brush = uiState.brush,
+                    onFinishStroke = {
+                        drawingCanvasViewModel.onStrokesFinished(listOf(it))
+                    }
+                )
+                InkCanvas(
+                    canvas = inkCanvas,
+                    modifier = Modifier.fillMaxSize().weight(1f)
+                        .clipToBounds()
+                        .background(MaterialTheme.colorScheme.background)
+                        .pointerInput(uiState.isEraserMode) {
+                            if (uiState.isEraserMode) {
+                                awaitPointerEventScope {
+                                    while (true) {
+                                        val event = awaitPointerEvent()
+                                        drawingCanvasViewModel.erase(
+                                            event.changes[0].position.x,
+                                            event.changes[0].position.y
+                                        )
+                                    }
                                 }
                             }
                         }
-                    }
-            )
-            if (uiState.note.imageUriList?.isNotEmpty() == true) {
-                NoteImagesView(
-                    images = uiState.note.imageUriList!!,
-                    onClearImages = { /*TODO*/ },
                 )
+            }
+            if (uiState.note.imageUriList?.isNotEmpty() == true) {
+                items(uiState.note.imageUriList!!) { image ->
+                    NoteImagesView(
+                        images = listOf(image),
+                        onClearImages = { /*TODO*/ },
+                    )
+                }
             }
         }
     }

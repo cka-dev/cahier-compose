@@ -162,128 +162,134 @@ fun NoteCanvas(
             ),
         color = MaterialTheme.colorScheme.background
     ) {
-        Column(
+        LazyColumn(
             modifier = modifier
                 .fillMaxSize()
                 .statusBarsPadding()
                 .navigationBarsPadding()
                 .imePadding()
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                TextField(
-                    value = uiState.note.title,
-                    onValueChange = { canvasScreenViewModel.updateNoteTitle(it) },
-                    placeholder = { Text(stringResource(R.string.title)) },
+            item {
+                Row(
                     modifier = Modifier
-                        .weight(1f)
-                        .focusRequester(titleFocusRequester)
-                        .onFocusChanged { focusState ->
-                            if (focusState.isFocused) {
-                                focusedField.value = FocusedField.TITLE
-                            }
-                        },
-                    keyboardOptions = KeyboardOptions(
-                        autoCorrectEnabled = true,
-                        capitalization = KeyboardCapitalization.Sentences
-                    ),
-                    textStyle = MaterialTheme.typography.titleLarge
-                )
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextField(
+                        value = uiState.note.title,
+                        onValueChange = { canvasScreenViewModel.updateNoteTitle(it) },
+                        placeholder = { Text(stringResource(R.string.title)) },
+                        modifier = Modifier
+                            .weight(1f)
+                            .focusRequester(titleFocusRequester)
+                            .onFocusChanged { focusState ->
+                                if (focusState.isFocused) {
+                                    focusedField.value = FocusedField.TITLE
+                                }
+                            },
+                        keyboardOptions = KeyboardOptions(
+                            autoCorrectEnabled = true,
+                            capitalization = KeyboardCapitalization.Sentences
+                        ),
+                        textStyle = MaterialTheme.typography.titleLarge
+                    )
 
-                Box {
-                    IconButton(onClick = { optionsMenuExpanded = true }) {
-                        Icon(
-                            imageVector = Icons.Default.Menu,
-                            contentDescription = stringResource(R.string.more_options)
-                        )
-                    }
+                    Box {
+                        IconButton(onClick = { optionsMenuExpanded = true }) {
+                            Icon(
+                                imageVector = Icons.Default.Menu,
+                                contentDescription = stringResource(R.string.more_options)
+                            )
+                        }
 
-                    DropdownMenu(
-                        expanded = optionsMenuExpanded,
-                        onDismissRequest = { optionsMenuExpanded = false }
-                    ) {
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.upload_image)) },
-                            onClick = {
-                                optionsMenuExpanded = false
-                                imagePickerLauncher.launch(
-                                    PickVisualMediaRequest(
-                                        ActivityResultContracts.PickVisualMedia.ImageOnly
+                        DropdownMenu(
+                            expanded = optionsMenuExpanded,
+                            onDismissRequest = { optionsMenuExpanded = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.upload_image)) },
+                                onClick = {
+                                    optionsMenuExpanded = false
+                                    imagePickerLauncher.launch(
+                                        PickVisualMediaRequest(
+                                            ActivityResultContracts.PickVisualMedia.ImageOnly
+                                        )
                                     )
-                                )
-                            },
-                            leadingIcon = {
-                                Icon(
-                                    painter = painterResource(R.drawable.image_24px),
-                                    contentDescription = stringResource(R.string.add_image)
-                                )
-                            }
-                        )
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        painter = painterResource(R.drawable.image_24px),
+                                        contentDescription = stringResource(R.string.add_image)
+                                    )
+                                }
+                            )
 
-                        DropdownMenuItem(
-                            text = {
-                                Text(
-                                    if (uiState.note.isFavorite)
-                                        stringResource(R.string.unfavorite)
-                                    else stringResource(R.string.favorite)
-                                )
-                            },
-                            onClick = {
-                                optionsMenuExpanded = false
-                                canvasScreenViewModel.toggleFavorite()
-                            },
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = if (uiState.note.isFavorite)
-                                        Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
-                                    contentDescription = null
-                                )
-                            }
-                        )
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        if (uiState.note.isFavorite)
+                                            stringResource(R.string.unfavorite)
+                                        else stringResource(R.string.favorite)
+                                    )
+                                },
+                                onClick = {
+                                    optionsMenuExpanded = false
+                                    canvasScreenViewModel.toggleFavorite()
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = if (uiState.note.isFavorite)
+                                            Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                                        contentDescription = null
+                                    )
+                                }
+                            )
 
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.exit)) },
-                            onClick = {
-                                optionsMenuExpanded = false
-                                onExit()
-                            },
-                            leadingIcon = {
-                                Icon(
-                                    Icons.AutoMirrored.Filled.ExitToApp,
-                                    contentDescription = null
-                                )
-                            }
-                        )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.exit)) },
+                                onClick = {
+                                    optionsMenuExpanded = false
+                                    onExit()
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        Icons.AutoMirrored.Filled.ExitToApp,
+                                        contentDescription = null
+                                    )
+                                }
+                            )
+                        }
                     }
                 }
             }
 
             if (uiState.note.text != null) {
-                TextField(
-                    value = uiState.note.text!!,
-                    onValueChange = { canvasScreenViewModel.updateNoteText(it) },
-                    placeholder = { Text(stringResource(R.string.note)) },
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
-                        .focusRequester(bodyFocusRequester)
-                        .onFocusChanged { focusState ->
-                            if (focusState.isFocused) {
-                                focusedField.value = FocusedField.BODY
-                            }
-                        },
-                    textStyle = MaterialTheme.typography.bodyLarge
-                )
+                item {
+                    TextField(
+                        value = uiState.note.text!!,
+                        onValueChange = { canvasScreenViewModel.updateNoteText(it) },
+                        placeholder = { Text(stringResource(R.string.note)) },
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                            .focusRequester(bodyFocusRequester)
+                            .onFocusChanged { focusState ->
+                                if (focusState.isFocused) {
+                                    focusedField.value = FocusedField.BODY
+                                }
+                            },
+                        textStyle = MaterialTheme.typography.bodyLarge
+                    )
+                }
             }
             if (uiState.note.imageUriList?.isNotEmpty() == true) {
-                NoteImagesView(
-                    images = uiState.note.imageUriList!!,
-                    onClearImages = { /*TODO*/ },
-                )
+                items(uiState.note.imageUriList!!) { image ->
+                    NoteImagesView(
+                        images = listOf(image),
+                        onClearImages = { /*TODO*/ },
+                    )
+                }
             }
         }
     }
