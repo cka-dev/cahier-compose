@@ -92,7 +92,6 @@ dependencies {
 
     //Room
     implementation(libs.androidx.room.runtime)
-    implementation(libs.androidx.ink.authoring.android)
     implementation(libs.androidx.input.motionprediction)
     ksp(libs.androidx.room.compiler)
     implementation(libs.androidx.room.ktx)
@@ -114,6 +113,8 @@ dependencies {
     implementation(libs.androidx.ink.rendering)
     implementation(libs.androidx.ink.strokes)
     implementation(libs.androidx.ink.storage)
+    implementation(libs.androidx.ink.authoring.android)
+    implementation(libs.androidx.ink.authoring.compose)
 
     // Gson
     implementation(libs.gson)

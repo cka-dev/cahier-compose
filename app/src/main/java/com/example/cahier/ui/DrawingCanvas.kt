@@ -24,14 +24,11 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.annotation.UiThread
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
@@ -40,6 +37,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -61,9 +59,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -79,9 +78,6 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.PopupProperties
 import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.ink.authoring.InProgressStrokeId
-import androidx.ink.authoring.InProgressStrokesFinishedListener
-import androidx.ink.authoring.InProgressStrokesView
 import androidx.ink.brush.BrushFamily
 import androidx.ink.brush.StockBrushes
 import androidx.ink.rendering.android.canvas.CanvasStrokeRenderer
@@ -101,13 +97,17 @@ fun DrawingCanvas(
 ) {
     val uiState by drawingCanvasViewModel.uiState.collectAsState()
     val context = LocalContext.current
-    val inProgressStrokesView = remember {
-        InProgressStrokesView(context)
-    }
-    inProgressStrokesView.eagerInit()
-
     val canvasStrokeRenderer = remember { CanvasStrokeRenderer.create() }
     val coroutineScope = rememberCoroutineScope()
+//    val selectedBrush by drawingCanvasViewModel.currentBrush.collectAsState()
+    val strokes = remember { mutableStateListOf<Stroke>() }
+
+    LaunchedEffect(uiState.strokes) {
+        if (strokes != uiState.strokes) {
+            strokes.clear()
+            strokes.addAll(uiState.strokes)
+        }
+    }
 
     val canUndo by drawingCanvasViewModel.canUndo.collectAsState()
     val canRedo by drawingCanvasViewModel.canRedo.collectAsState()
@@ -121,27 +121,6 @@ fun DrawingCanvas(
             coroutineScope.launch {
                 drawingCanvasViewModel.updateImageUri(it.toString())
             }
-        }
-    }
-
-    val listener = remember(inProgressStrokesView) {
-
-        object : InProgressStrokesFinishedListener {
-            @UiThread
-            override fun onStrokesFinished(strokes: Map<InProgressStrokeId, Stroke>) {
-                drawingCanvasViewModel.onStrokesFinished(strokes, inProgressStrokesView)
-            }
-        }
-    }
-
-    drawingCanvasViewModel.setInProgressStrokesFinishedListener(inProgressStrokesView, listener)
-
-    DisposableEffect(Unit) {
-        onDispose {
-            drawingCanvasViewModel.removeInProgressStrokesFinishedListener(
-                inProgressStrokesView,
-                listener
-            )
         }
     }
 
@@ -164,7 +143,7 @@ fun DrawingCanvas(
                 modifier = Modifier.weight(1f),
                 singleLine = true,
                 keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Done),
-                keyboardActions = KeyboardActions(onDone = { /* Maybe hide keyboard */ })
+                keyboardActions = KeyboardActions(onDone = { })
             )
         }
         DrawingToolbox(
@@ -180,11 +159,15 @@ fun DrawingCanvas(
             onExit = navigateUp,
         )
         DrawingSurface(
-            strokes = uiState.strokes,
-            inProgressStrokesView = inProgressStrokesView,
+            strokes = strokes,
             canvasStrokeRenderer = canvasStrokeRenderer,
-            onDrawing = drawingCanvasViewModel::handleDrawing,
             uiState = uiState,
+//            selectedBrush = selectedBrush,
+            selectedBrush = uiState.brush,
+            onStrokesFinished = { newStrokes ->
+                strokes.addAll(newStrokes)
+                drawingCanvasViewModel.onStrokesFinished(newStrokes)
+            },
             modifier = Modifier.weight(1f),
         )
     }
@@ -214,7 +197,7 @@ fun DrawingToolbox(
         tonalElevation = 4.dp,
         shape = MaterialTheme.shapes.medium
     ) {
-        LazyRow (
+        LazyRow(
             modifier = modifier
                 .background(
                     MaterialTheme.colorScheme.surfaceVariant,
@@ -350,7 +333,9 @@ fun DrawingToolbox(
             item {
                 IconButton(onClick = {
                     imagePickerLauncher.launch(
-                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                        PickVisualMediaRequest(
+                            ActivityResultContracts.PickVisualMedia.ImageOnly
+                        )
                     )
                 }) {
                     Icon(

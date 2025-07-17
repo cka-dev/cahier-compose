@@ -21,7 +21,8 @@ package com.example.cahier.data
 import android.util.Log
 import androidx.ink.brush.Brush
 import androidx.ink.brush.StockBrushes
-import androidx.ink.storage.decodeOrThrow
+import androidx.ink.storage.decode
+//import androidx.ink.storage.decodeOrThrow
 import androidx.ink.storage.encode
 import androidx.ink.strokes.Stroke
 import androidx.ink.strokes.StrokeInputBatch
@@ -74,7 +75,9 @@ class Converters {
 
     private fun deserializeStroke(serializedStroke: SerializedStroke): Stroke? {
         val inputs = ByteArrayInputStream(serializedStroke.inputs).use { inputStream ->
-            StrokeInputBatch.decodeOrThrow(inputStream)
+            StrokeInputBatch.decode(
+                inputStream
+            )
         }
         val brush = deserializeBrush(serializedStroke.brush)
         return Stroke(brush = brush, inputs = inputs)

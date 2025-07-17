@@ -19,11 +19,14 @@
 
 package com.example.cahier.data
 
+import androidx.ink.brush.Brush
 import androidx.ink.strokes.Stroke
 
 data class CahierUiState(
     val note: Note = Note(),
     val isLoading: Boolean = false,
     val error: String? = null,
-    val strokes: List<Stroke> = listOf()
-)
+    val strokes: List<Stroke> = listOf(),
+    val brush: Brush? = null,
+    val isEraserMode: Boolean = false,
+    )
